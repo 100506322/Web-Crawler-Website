@@ -21,7 +21,7 @@ while ($OutputData = $data->fetch(PDO::FETCH_ASSOC)) {
     $response[] = $OutputData;
 }
 if (isset($response[0]["ProductID"])) {
-    $data1 = $conn->prepare("SELECT Price, PriceDate FROM price WHERE ProductID = ".$response[0]["ProductID"]." and PriceDate BETWEEN '2022-02-18' AND '2022-03-07';");
+    $data1 = $conn->prepare("SELECT Price, PriceDate FROM price WHERE ProductID = ".$response[0]["ProductID"]." and PriceDate BETWEEN CURDATE() - INTERVAL 30 DAY AND CURDATE();");
     $data1->execute();
     $response1 = array();
     while ($OutputData1 = $data1->fetch(PDO::FETCH_ASSOC)) {
