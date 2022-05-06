@@ -1,0 +1,18 @@
+CREATE TABLE product (
+    ProductID int NOT NULL AUTO_INCREMENT,
+    Title varchar(255),
+    Retailer varchar(255),
+    UNIQUE KEY Product_Already_Exists (Title, Retailer),
+    PRIMARY KEY (ProductID)
+);
+
+CREATE TABLE price (
+    PriceID int NOT NULL AUTO_INCREMENT,
+    PriceDate date,
+    Price float,
+    ProductID int,
+    PRIMARY KEY (PriceID),
+    UNIQUE KEY PriceDate_2 (PriceDate, ProductID),
+    UNIQUE KEY PriceDate (PriceDate, Price, ProductID),
+    FOREIGN KEY (ProductID) REFERENCES product (ProductID)
+);
