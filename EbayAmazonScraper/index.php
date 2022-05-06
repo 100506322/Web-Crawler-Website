@@ -1,14 +1,15 @@
 <?php
+// Database Details
 $servername = "127.0.0.1";
 $username = "root";
 $password = "";
 $db = "pricehistory";
 try {
+    // Connect to Database
     $conn = new PDO("mysql:host=$servername;dbname=pricehistory", $username, $password);
     // Set the PDO error mode to exception
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $conn->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
-
 }
 catch(PDOException $e)
 {
@@ -21,6 +22,7 @@ catch(PDOException $e)
     <title>Web Crawler Website for eBay and Amazon</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Web crawler website that crawls both Amazon and eBay for a product.">
+    <!-- CSS Styling -->
     <style>
 
         h2 {
@@ -86,6 +88,7 @@ catch(PDOException $e)
 
 
 </head>
+
 <body>
 <div class="header">
 
@@ -93,11 +96,12 @@ catch(PDOException $e)
 
     <form method="POST" action="" accept-charset="utf-8">
         <div id="Wrapper" style="padding-right: 10%">
-
-            <input name="Products" placeholder="Search eBay and Amazon for products.." style=" padding: 8px; width: 250px"/>
+            <!-- Search box for users keyword -->
+            <input name="Keyword" placeholder="Search eBay and Amazon for products.." style=" padding: 8px; width: 250px"/>
             <input class="button" type="submit" name="submit" value="Submit me!"  />
 
             <div class="InputBox" style="float: left">
+                <!-- Search box for table of results -->
                 <input id="myInput" onkeyup="SearchFunction()" placeholder="Search table for products.." style=" padding: 8px" type = "text">
             </div>
         </div>
@@ -108,42 +112,41 @@ catch(PDOException $e)
 
 <table id="table" class="Rows">
     <thead>
-
+    <!-- Table of results -->
     <tr>
         <th class="tableheading">Product Title</th>
         <th class="tableheading">Link</th>
         <th class="tableheading">Reviews</th>
         <th class="tableheading" id="price" onclick="sortTable()">Price</th>
-
-
     </tr>
     </thead>
     <tbody>
     <?php
     //Checks if user input, Products, is empty or not
-    if (!empty($_POST['Products']))
+    if (!empty($_POST['Keyword']))
     {
-        $keyword = str_replace(" ", "+", $_POST['Products']);
+        //Replace a space with + for keyword. Required for adding keyword to Amazon or eBay URL in web scraper
+        $keyword = str_replace(" ", "+", $_POST['Keyword']);
         //Executing a python script while passing the user input as keyword and saving the output of python
         //file as $ebay_data
-        $ebay_data = exec('python main.py '.$keyword.'');
+        $ebay_data = exec('python eBay.py '.$keyword.'');
 
         //Decoding the returned json from the python script into objects that we can call
         $ebay_decode_data = json_decode($ebay_data);
 
         $i = 0;
-        $d = 0;
 
-        //Loop through.
-
+        //Loop through JSON objects.
         while ($i < count($ebay_decode_data))
         {
+            //First product on eBay search page is always "Shop on eBay". This avoids it.
             if ($ebay_decode_data[$i]->item->title != "Shop on eBay") {
+                //Pre process data before its passed into URL and MySQL queries, removing symbols which conflict.
                 $ebay_decode_data[$i]->item->title = str_replace('"', "", $ebay_decode_data[$i]->item->title);
                 $ebay_decode_data[$i]->item->title = str_replace("'", "", $ebay_decode_data[$i]->item->title);
                 $ebay_decode_data[$i]->item->title = str_replace("+", "", $ebay_decode_data[$i]->item->title);
                 $ebay_decode_data[$i]->item->title = str_replace("&", "", $ebay_decode_data[$i]->item->title);
-                //Output table adding the scraped data from python
+                //Output table adding the scraped data from python script.
                 echo "<tr class='ebay' onclick=\"window.location='PriceHistoryGraph.php?ProductTitle=".$ebay_decode_data[$i]->item->title."'\">";
                 //Product Title
                 echo "<td>" . $ebay_decode_data[$i]->item->title . "</td>";
@@ -160,39 +163,42 @@ catch(PDOException $e)
 
                 echo "</tr>";
 
+                //Remove non numbers from price so its ready for database insertion which is float only.
                 $price = str_replace("£", "", $ebay_decode_data[$i]->item->price);
                 if (strpos($price, "to") !== false) {
                     $price = substr($price, 0, strpos($price, "to"));
                 }
+
+                //Convert to float
                 $price = floatval($price);
 
                 try {
                     //Add product to database
-                    $data = $conn->exec("INSERT INTO product (Title, Retailer) VALUES ('" . $ebay_decode_data[$i]->item->title . "','eBay'); 
-                    INSERT INTO price (PriceDate, Price, ProductID) VALUES ('" . date("Y-m-d") . "', " . $price . ", LAST_INSERT_ID());");
+                    $data = $conn->exec("INSERT INTO product (Title, Retailer) VALUES ('" . $ebay_decode_data[$i]->item->title . "','eBay'); INSERT INTO price (PriceDate, Price, ProductID) VALUES ('" . date("Y-m-d") . "', " . $price . ", LAST_INSERT_ID());");
                 }
                 catch(Exception $e) {
                     //If above fails, only insert price.
                     if ($e->errorInfo[1] == 1062) {
                         try {
-                            $data = $conn->exec("INSERT INTO price (PriceDate, Price, ProductID) 
-                            VALUES ('" . date("Y-m-d") . "', " . $price . ", (SELECT ProductID FROM product WHERE TITLE = '".$ebay_decode_data[$i]->item->title."'))");
+                            $data = $conn->exec("INSERT INTO price (PriceDate, Price, ProductID) VALUES ('" . date("Y-m-d") . "', " . $price . ", (SELECT ProductID FROM product WHERE TITLE = '".$ebay_decode_data[$i]->item->title."'))");
                         }
                         catch (Exception $e) {
-                            # If same date and price, must be duplicate from website, dont save.
+                            //If same date and price, must be duplicate from website, dont save.
                             if ($e->errorInfo[1] == 1062 or $e->errorInfo[1] == 1242) {
-                                #Delete entry to avoid continuous loop
+                                //Delete entry to avoid continuous loop
                                 array_splice($ebay_decode_data,$i ,1);
                                 $i++;
                                 continue;
                             }
                             else {
+                                //Dump error message
                                 echo 'ExceptionL202 - > ';
                                 var_dump($e->getMessage());
                             }
                         }
                     }
                     else {
+                        //Dump error message
                         echo 'ExceptionL208 - > ';
                         var_dump($e->getMessage());
 
@@ -208,9 +214,11 @@ catch(PDOException $e)
             $i++;
         }
 
-        //Execute another python file for amazon scrape as its different
-        $amazon_data = exec('python amazon2.py '.$keyword.'');
+        //Execute another python file for Amazon scrape as its different
+        $amazon_data = exec('python Amazon.py '.$keyword.'');
+
         $amazon_decode_data = json_decode($amazon_data);
+
         $i = 0;
 
         while ($i < count($amazon_decode_data))
@@ -231,23 +239,27 @@ catch(PDOException $e)
 
             echo "</tr>";
 
+            //Only need to replace £ symbol as no price ranges with Amazon products
             $price = str_replace("£", "", $amazon_decode_data[$i]->Product->Price);
 
             $price = floatval($price);
 
             try {
+                //Add product to database
                 $data = $conn->exec("BEGIN; INSERT INTO product (Title, Retailer) VALUES ('".$amazon_decode_data[$i]->Product->Title."','Amazon'); INSERT INTO price (PriceDate, Price, ProductID) VALUES ('".date("Y-m-d")."', ".$price.",LAST_INSERT_ID());COMMIT; ");
                 $i++;
             }
             catch (Exception $e) {
+                //If above fails, only insert price.
                 if ($e->errorInfo[1] == 1062) {
-                    # If Duplicate Entry
                     try {
                         $data = $conn->exec("INSERT INTO price (PriceDate, Price, ProductID) VALUES ('" . date("Y-m-d") . "', " . $price . ", (SELECT ProductID FROM product WHERE TITLE = '".$amazon_decode_data[$i]->Product->Title."'))");
                         $i++;
                     }
                     catch (Exception $e) {
+                        //If same date and price, must be duplicate from website, dont save.
                         if ($e->errorInfo[1] == 1062 or $e->errorInfo[1] == 1242) {
+                            //Delete entry to avoid continuous loop
                             array_splice($amazon_decode_data,$i ,1);
                             continue;
                         }

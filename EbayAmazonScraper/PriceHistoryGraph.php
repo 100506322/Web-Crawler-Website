@@ -1,9 +1,11 @@
 <?php
+// Database Details
 $servername = "127.0.0.1";
 $username = "root";
 $password = "";
 $db = "pricehistory";
 try {
+    // Connect to Database
     $conn = new PDO("mysql:host=$servername;dbname=pricehistory", $username, $password);
     // Set the PDO error mode to exception
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -11,8 +13,9 @@ try {
 }
 catch(PDOException $e)
 {
-    #echo "Connection failed: " . $e->getMessage();
+    echo "Connection failed: " . $e->getMessage();
 }
+// Get ProductID from database using ProductTitle parameter
 $data = $conn->prepare("SELECT ProductID FROM product WHERE Title = '".$_GET['ProductTitle']."'");
 $data->execute();
 $response = array();
@@ -20,10 +23,13 @@ $response = array();
 while ($OutputData = $data->fetch(PDO::FETCH_ASSOC)) {
     $response[] = $OutputData;
 }
+
+// With ProductID, get Price and PriceDate.
 if (isset($response[0]["ProductID"])) {
     $data1 = $conn->prepare("SELECT Price, PriceDate FROM price WHERE ProductID = ".$response[0]["ProductID"]." and PriceDate BETWEEN CURDATE() - INTERVAL 30 DAY AND CURDATE();");
     $data1->execute();
     $response1 = array();
+    // Loop through saving Prices and PriceDates
     while ($OutputData1 = $data1->fetch(PDO::FETCH_ASSOC)) {
         $PriceDate[] = $OutputData1["PriceDate"];
         $Price[] = $OutputData1["Price"];
@@ -67,6 +73,7 @@ else {
     <canvas  id="chartjs_bar"></canvas>
 </div>
 </body>
+<!-- Graph code, inserting array of Prices and PriceDates retrieved from database. -->
 <script src="//code.jquery.com/jquery-1.9.1.js"></script>
 <script src="//cdnjs.cloudflare.com/ajax/libs/Chart.js/2.4.0/Chart.min.js"></script>
 <script type="text/javascript">
